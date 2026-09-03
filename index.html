@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Gastos Quincenales</title>
+    <!-- Vinculación del archivo de estilos personalizado local -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Carga optimizada de Tailwind CSS v4 para ejecución en navegador (Producción/GitHub Pages) -->
+    <script src="https://jsdelivr.net"></script>
+    <!-- Librería Chart.js para renderizar la gráfica de dona -->
+    <script src="https://jsdelivr.net"></script>
+    <!-- Librería SheetJS para el procesamiento y exportación a archivos Excel (.xlsx) -->
+    <script src="https://jsdelivr.net"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+
+    <div class="max-w-6xl mx-auto p-4 md:p-8">
+        <!-- Encabezado de la Aplicación -->
+        <header class="mb-8 text-center md:text-left flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">📊 Control de Gastos Quincenales</h1>
+                <p class="text-gray-500 mt-1">Registra tus consumos uno a uno, analiza tus métricas y exporta a Excel.</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex flex-col items-center md:items-end bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Presupuesto Quincenal</label>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-600 font-bold">$</span>
+                    <input type="number" id="presupuestoInput" value="10000" class="w-32 bg-transparent text-xl font-bold text-gray-800 focus:outline-none border-b-2 border-indigo-500 pb-0.5">
+                </div>
+            </div>
+        </header>
+
+        <!-- Bloque de Tarjetas de Indicadores Financieros -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <p class="text-sm font-medium text-gray-500">Total Gastado</p>
+                <p id="cardGastado" class="text-3xl font-bold text-gray-800 mt-2">$0.00</p>
+                <div class="w-full bg-gray-100 rounded-full h-2 mt-4">
+                    <div id="barraProgreso" class="bg-indigo-600 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <p class="text-sm font-medium text-gray-500">Saldo Disponible</p>
+                <p id="cardSaldo" class="text-3xl font-bold text-emerald-600 mt-2">$0.00</p>
+                <span id="badgeEstado" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 mt-3">Estable</span>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <p class="text-sm font-medium text-gray-500">Mayor Gasto En</p>
+                <p id="cardMayorGasto" class="text-2xl font-bold text-gray-800 mt-2">Ninguno</p>
+                <p id="cardMayorGastoMonto" class="text-sm text-gray-500 mt-2">Registra un gasto para analizar</p>
+            </div>
+        </div>
+
+        <!-- Sección Central: Formulario de Entrada y Gráfica Dinámica -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            <!-- Formulario de ingreso de consumos -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">📝 Añadir Nuevo Gasto</h2>
+                <form id="gastoForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                        <input type="text" id="descGasto" placeholder="Ej. Súper, Gasolina, Netflix" required class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Monto ($)</label>
+                            <input type="number" id="montoGasto" step="0.01" placeholder="0.00" required class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                            <select id="catGasto" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition">
+                                <option value="Vivienda">🏠 Vivienda</option>
+                                <option value="Alimentos">🛒 Alimentos</option>
+                                <option value="Transporte">🚗 Transporte</option>
+                                <option value="Servicios">⚡ Servicios</option>
+                                <option value="Entretenimiento">🎬 Ocio</option>
+                                <option value="Otros">📦 Otros</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium p-3 rounded-xl transition shadow-sm cursor-pointer">
+                        Ingresar Gasto
+                    </button>
+                </form>
+            </div>
+
+            <!-- Panel de la Gráfica de Distribución -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+                <h2 class="text-xl font-bold text-gray-800 self-start mb-4">🍩 Distribución de Gastos</h2>
+                <div class="w-full max-w-[320px] aspect-square flex items-center justify-center">
+                    <canvas id="graficaGastos"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sección Inferior: Historial de Operaciones y Diagnóstico Automático -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Tabla de datos e historial -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">📋 Historial de esta Quincena</h2>
+                    <div class="flex gap-2 w-full sm:w-auto">
+                        <button id="btnExcel" class="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition shadow-sm flex items-center justify-center gap-1 cursor-pointer">
+                            📥 Exportar Excel
+                        </button>
+                        <button id="btnLimpiar" class="bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 font-medium px-4 py-2 rounded-xl text-sm transition border border-gray-200 cursor-pointer">
+                            🗑️ Limpiar
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-500 text-xs font-semibold uppercase tracking-wider border-b border-gray-100">
+                                <th class="p-3">Fecha</th>
+                                <th class="p-3">Descripción</th>
+                                <th class="p-3">Categoría</th>
+                                <th class="p-3 text-right">Monto</th>
+                                <th class="p-3 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaCuerpo" class="divide-y divide-gray-100 text-sm text-gray-700">
+                            <!-- Los registros individuales se inyectarán de forma dinámica mediante JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Panel de Diagnóstico Financiero Inteligente -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">🔎 Diagnóstico y Análisis</h2>
+                <div id="diagnosticoContenedor" class="p-4 rounded-xl bg-gray-50 text-sm text-gray-600 space-y-3">
+                    Cargando análisis...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vinculación del script lógico personalizado local -->
+    <script src="app.js"></script>
+</body>
+</html>
