@@ -1,0 +1,27 @@
+/* Estilos personalizados para mejorar transiciones y apariencia nativa */
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* Efectos visuales suaves para interacciones */
+.transition-all-custom {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Reglas CSS para asegurar legibilidad en impresiones rápidas */
+@media print {
+    body {
+        background-color: #ffffff;
+    }
+    header, #gastoForm, #btnExcel, #btnLimpiar {
+        display: none !important;
+    }
+}
