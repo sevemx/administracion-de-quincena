@@ -1,0 +1,54 @@
+/* ==========================================
+   CONTROL DE GASTOS QUINCENALES
+   ESTILOS PERSONALIZADOS
+   ========================================== */
+/* Eliminar flechas de inputs numéricos */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+/* Transiciones */
+.transition-all-custom {
+    transition:
+        all 0.3s cubic-bezier(
+            0.4,
+            0,
+            0.2,
+            1
+        );
+}
+/* Scroll horizontal de tablas */
+table {
+    min-width: 600px;
+}
+/* Mejor comportamiento en móviles */
+@media (max-width: 640px) {
+    table {
+        font-size: 0.85rem;
+    }
+}
+/* ==========================================
+   IMPRESIÓN
+   ========================================== */
+@media print {
+    body {
+        background-color: #ffffff !important;
+    }
+    header,
+    #gastoForm,
+    #btnExcel,
+    #btnLimpiar {
+        display: none !important;
+    }
+    .shadow-sm {
+        box-shadow: none !important;
+    }
+    .border {
+        border: 1px solid #ddd !important;
+    }
+}
