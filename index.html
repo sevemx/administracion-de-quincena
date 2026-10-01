@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Presupuesto Personal Pro</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (Excel) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- html2canvas (Exportar Imagen) -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 9999px; }
+        
+        /* Animaciones para alertas */
+        @keyframes slideIn {
+            from { transform: translateY(-10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-in { animation: slideIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-200">
+
+    <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-blue-500 to-indigo-600 p-2.5 rounded-xl text-white shadow-md">
+                    <i class="fa-solid fa-wallet text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-300 bg-clip-text text-transparent">WalletPro</h1>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="toggleDarkMode()" class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                    <i id="themeIcon" class="fa-solid fa-moon text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main id="dashboardContent" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Presupuesto Inicial -->
+            <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-24 h-24 bg-blue-500/10 rounded-full blur-xl"></div>
+                <div class="flex items-center justify-between mb-2 relative z-10">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Presupuesto</span>
+                    <button onclick="openBudgetModal()" class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                        <i class="fa-solid fa-pen"></i> Editar
+                    </button>
+                </div>
+                <div class="relative z-10">
+                    <span id="displayBudget" class="text-3xl font-extrabold text-slate-900 dark:text-white">$0.00</span>
+                </div>
+            </div>
+
+            <!-- Total Gastado -->
+            <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-24 h-24 bg-rose-500/10 rounded-full blur-xl"></div>
+                <div class="flex items-center justify-between mb-2 relative z-10">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Gastado</span>
+                    <i class="fa-solid fa-arrow-trend-up text-rose-500"></i>
+                </div>
+                <div class="relative z-10">
+                    <span id="displaySpent" class="text-3xl font-extrabold text-rose-600 dark:text-rose-400">$0.00</span>
+                </div>
+            </div>
+
+            <!-- Restante -->
+            <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl"></div>
+                <div class="flex items-center justify-between mb-2 relative z-10">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Restante</span>
+                    <i class="fa-solid fa-piggy-bank text-emerald-500"></i>
+                </div>
+                <div class="relative z-10">
+                    <span id="displayRemaining" class="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">$0.00</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+            <div class="flex justify-between items-end mb-2">
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Consumo del Presupuesto</span>
+                <span id="progressPercentageText" class="text-sm font-bold text-slate-900 dark:text-white">0%</span>
+            </div>
+            <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-4 overflow-hidden">
+                <div id="progressBar" class="bg-blue-500 h-4 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+            </div>
+            <p id="progressStatusText" class="text-xs text-slate-500 dark:text-slate-400 mt-2">Dentro del límite seguro.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Formulario (Lado Izquierdo) -->
+            <div class="lg:col-span-4 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle text-blue-500"></i> Registrar Gasto
+                </h3>
+                
+                <!-- IMPORTANTE: onsubmit directo llamando a la función global -->
+                <form id="expenseForm" onsubmit="handleExpenseSubmit(event)" class="space-y-4">
+                    <input type="hidden" id="expenseId">
+                    
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Descripción *</label>
+                        <input type="text" id="expenseConcept" required placeholder="Ej. Cena, Supermercado..." class="w-full text-sm bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Monto *</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-2.5 text-slate-500 font-bold">$</span>
+                            <input type="number" id="expenseAmount" step="0.01" min="0.01" required placeholder="0.00" class="w-full text-sm font-semibold bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-xl pl-7 pr-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Categoría *</label>
+                        <select id="expenseCategory" required class="w-full text-sm bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="Alimentación">Alimentación</option>
+                            <option value="Vivienda">Vivienda</option>
+                            <option value="Servicios">Servicios</option>
+                            <option value="Transporte">Transporte</option>
+                            <option value="Entretenimiento">Entretenimiento</option>
+                            <option value="Salud">Salud</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Fecha *</label>
+                        <input type="date" id="expenseDate" required class="w-full text-sm bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition active:scale-95">
+                        Guardar Gasto
+                    </button>
+                    <button type="button" id="cancelEditBtn" onclick="resetForm()" class="hidden w-full mt-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold py-2 px-4 rounded-xl transition">
+                        Cancelar Edición
+                    </button>
+                </form>
+
+                <!-- Feedback Visual -->
+                <div id="formFeedback" class="hidden mt-3 p-3 rounded-lg text-sm text-center font-medium animate-slide-in"></div>
+            </div>
+
+            <div class="lg:col-span-8 flex flex-col gap-6">
+                <!-- Gráficas -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                        <h3 class="text-sm font-bold text-center mb-2">Gastos por Categoría</h3>
+                        <div class="w-full h-56 relative"><canvas id="categoryChart"></canvas></div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                        <h3 class="text-sm font-bold text-center mb-2">Evolución (Últimos Gastos)</h3>
+                        <div class="w-full h-56 relative"><canvas id="barChart"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- Exportaciones -->
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                    <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-file-export text-indigo-500"></i> Exportar Reportes
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <button onclick="exportToWhatsApp()" class="flex items-center justify-center gap-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400 py-2.5 rounded-xl text-sm font-medium transition">
+                            <i class="fa-brands fa-whatsapp text-lg"></i> WhatsApp
+                        </button>
+                        <button onclick="exportToExcel()" class="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400 py-2.5 rounded-xl text-sm font-medium transition">
+                            <i class="fa-solid fa-file-excel text-lg"></i> Excel
+                        </button>
+                        <button onclick="exportToImage()" class="flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400 py-2.5 rounded-xl text-sm font-medium transition">
+                            <i class="fa-solid fa-image text-lg"></i> Imagen PNG
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                <h3 class="text-base font-bold">Historial de Movimientos</h3>
+                <span id="tableCount" class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full font-medium">0 registros</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold">
+                        <tr>
+                            <th class="py-3 px-5">Fecha</th>
+                            <th class="py-3 px-5">Descripción</th>
+                            <th class="py-3 px-5">Categoría</th>
+                            <th class="py-3 px-5 text-right">Monto</th>
+                            <th class="py-3 px-5 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expensesTableBody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                        <!-- Filas inyectadas por JS -->
+                    </tbody>
+                </table>
+                <div id="emptyTableMsg" class="p-8 text-center text-slate-500 dark:text-slate-400 hidden">
+                    <i class="fa-solid fa-receipt text-3xl mb-2 opacity-50"></i>
+                    <p class="text-sm">No hay gastos registrados. ¡Añade tu primer gasto arriba!</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="budgetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4 hidden flex">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Ajustar Presupuesto Inicial</h3>
+            <form id="budgetForm" onsubmit="saveBudgetSettings(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Monto Total *</label>
+                    <input type="number" id="modalBudgetAmount" step="0.01" min="1" required class="w-full text-lg font-bold bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeBudgetModal()" class="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl">Cancelar</button>
+                    <button type="submit" class="px-5 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ESTADO GLOBAL DE LA APP
+        let state = {
+            budget: 10000,
+            expenses: [],
+            darkMode: false
+        };
+
+        // Instancias de Gráficos
+        let chartPie = null;
+        let chartBar = null;
+
+        // Configuración visual de categorías
+        const categoryColors = {
+            'Alimentación': '#10b981', // Emerald
+            'Vivienda': '#3b82f6',     // Blue
+            'Servicios': '#6366f1',    // Indigo
+            'Transporte': '#f59e0b',   // Amber
+            'Entretenimiento': '#ec4899',// Pink
+            'Salud': '#ef4444',        // Red
+            'Otros': '#64748b'         // Slate
+        };
+
+        // --- INICIALIZACIÓN ROBUSTA ---
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                loadData();
+                setDefaultDate();
+                applyTheme();
+                updateUI();
+                console.log("Aplicación inicializada correctamente.");
+            } catch (error) {
+                console.error("Error crítico en la inicialización:", error);
+                alert("Hubo un problema al cargar la aplicación. Verifica la consola.");
+            }
+        });
+
+        // --- GESTIÓN DE DATOS (LOCALSTORAGE) ---
+        function loadData() {
+            try {
+                const savedData = localStorage.getItem('walletProData');
+                if (savedData) {
+                    state = { ...state, ...JSON.parse(savedData) };
+                }
+            } catch (error) {
+                console.error("Error leyendo localStorage:", error);
+            }
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem('walletProData', JSON.stringify(state));
+            } catch (error) {
+                console.error("Error guardando en localStorage:", error);
+            }
+        }
+
+        // --- FORMULARIO Y GUARDADO DE GASTOS ---
+        // Se expone globalmente para ser llamada desde onsubmit="handleExpenseSubmit(event)"
+        window.handleExpenseSubmit = function(e) {
+            e.preventDefault(); // PREVIENE LA RECARGA DE LA PÁGINA
+
+            try {
+                const idInput = document.getElementById('expenseId');
+                const conceptInput = document.getElementById('expenseConcept');
+                const amountInput = document.getElementById('expenseAmount');
+                const categoryInput = document.getElementById('expenseCategory');
+                const dateInput = document.getElementById('expenseDate');
+
+                // Validación extra
+                if (!conceptInput || !amountInput) {
+                    throw new Error("No se encontraron los inputs en el DOM.");
+                }
+
+                const id = idInput.value;
+                const concept = conceptInput.value.trim();
+                const amount = parseFloat(amountInput.value);
+                const category = categoryInput.value;
+                const date = dateInput.value;
+
+                if (!concept || isNaN(amount) || amount <= 0 || !date) {
+                    showFeedback("Por favor, ingresa datos válidos.", "error");
+                    return;
+                }
+
+                if (id) {
+                    // Modo Edición
+                    const index = state.expenses.findIndex(exp => exp.id === id);
+                    if (index !== -1) {
+                        state.expenses[index] = { id, concept, amount, category, date };
+                        showFeedback("Gasto actualizado exitosamente.", "success");
+                    }
+                } else {
+                    // Modo Nuevo Gasto
+                    const newExpense = {
+                        id: Date.now().toString(), // ID único basado en el timestamp
+                        concept,
+                        amount,
+                        category,
+                        date
+                    };
+                    state.expenses.unshift(newExpense); // Agregar al inicio de la lista
+                    showFeedback("Gasto guardado exitosamente.", "success");
+                }
+
+                saveData();
+                resetForm();
+                updateUI();
+
+            } catch (error) {
+                console.error("Error en handleExpenseSubmit:", error);
+                showFeedback("Error al procesar el formulario.", "error");
+            }
+        };
+
+        function showFeedback(msg, type) {
+            const fb = document.getElementById('formFeedback');
+            fb.textContent = msg;
+            fb.className = `mt-3 p-3 rounded-lg text-sm text-center font-medium animate-slide-in block ${type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`;
+            
+            // Ocultar después de 3 segundos
+            setTimeout(() => {
+                fb.classList.replace('block', 'hidden');
+            }, 3000);
+        }
+
+        function resetForm() {
+            document.getElementById('expenseForm').reset();
+            document.getElementById('expenseId').value = '';
+            document.getElementById('submitBtn').textContent = 'Guardar Gasto';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+            setDefaultDate();
+        }
+
+        function editExpense(id) {
+            const exp = state.expenses.find(e => e.id === id);
+            if (!exp) return;
+
+            document.getElementById('expenseId').value = exp.id;
+            document.getElementById('expenseConcept').value = exp.concept;
+            document.getElementById('expenseAmount').value = exp.amount;
+            document.getElementById('expenseCategory').value = exp.category;
+            document.getElementById('expenseDate').value = exp.date;
+
+            document.getElementById('submitBtn').textContent = 'Actualizar Gasto';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+            
+            // Scroll hacia el formulario en móviles
+            document.getElementById('expenseForm').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function deleteExpense(id) {
+            if (confirm("¿Seguro que deseas eliminar este registro?")) {
+                state.expenses = state.expenses.filter(e => e.id !== id);
+                saveData();
+                updateUI();
+                resetForm(); // Por si estaba editando el que borró
+            }
+        }
+
+        function setDefaultDate() {
+            const dateInput = document.getElementById('expenseDate');
+            if (dateInput) {
+                dateInput.value = new Date().toISOString().split('T')[0];
+            }
+        }
+
+        // --- ACTUALIZACIÓN DE UI (INTERFAZ) ---
+        function updateUI() {
+            try {
+                // 1. Cálculos Matemáticos
+                const totalSpent = state.expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+                const remaining = state.budget - totalSpent;
+                const pctSpent = state.budget > 0 ? (totalSpent / state.budget) * 100 : 0;
+
+                // 2. Actualizar Textos en el Dashboard
+                document.getElementById('displayBudget').textContent = formatCurrency(state.budget);
+                document.getElementById('displaySpent').textContent = formatCurrency(totalSpent);
+                document.getElementById('displayRemaining').textContent = formatCurrency(remaining);
+                
+                // Color del restante
+                const remEl = document.getElementById('displayRemaining');
+                if (remaining < 0) {
+                    remEl.classList.remove('text-emerald-600', 'dark:text-emerald-400');
+                    remEl.classList.add('text-red-600', 'dark:text-red-400');
+                } else {
+                    remEl.classList.remove('text-red-600', 'dark:text-red-400');
+                    remEl.classList.add('text-emerald-600', 'dark:text-emerald-400');
+                }
+
+                // 3. Barra de Progreso
+                const bar = document.getElementById('progressBar');
+                const pctText = document.getElementById('progressPercentageText');
+                const statusText = document.getElementById('progressStatusText');
+                
+                const clampedPct = Math.min(pctSpent, 100);
+                bar.style.width = `${clampedPct}%`;
+                pctText.textContent = `${pctSpent.toFixed(1)}%`;
+
+                if (pctSpent < 75) {
+                    bar.className = 'bg-blue-500 h-4 rounded-full transition-all duration-700 ease-out';
+                    statusText.textContent = 'Presupuesto saludable.';
+                    statusText.className = 'text-xs mt-2 text-slate-500 dark:text-slate-400';
+                } else if (pctSpent <= 100) {
+                    bar.className = 'bg-amber-500 h-4 rounded-full transition-all duration-700 ease-out';
+                    statusText.textContent = 'Atención: Te acercas a tu límite.';
+                    statusText.className = 'text-xs mt-2 text-amber-600 font-medium';
+                } else {
+                    bar.className = 'bg-red-500 h-4 rounded-full transition-all duration-700 ease-out';
+                    statusText.textContent = `¡Límite excedido por ${formatCurrency(Math.abs(remaining))}!`;
+                    statusText.className = 'text-xs mt-2 text-red-600 font-bold';
+                }
+
+                // 4. Renderizar Tabla y Gráficos
+                renderTable();
+                renderCharts();
+
+            } catch (error) {
+                console.error("Error al actualizar UI:", error);
+            }
+        }
+
+        function formatCurrency(val) {
+            return '$' + parseFloat(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('expensesTableBody');
+            const emptyMsg = document.getElementById('emptyTableMsg');
+            const countBadge = document.getElementById('tableCount');
+            
+            tbody.innerHTML = '';
+            countBadge.textContent = `${state.expenses.length} registros`;
+
+            if (state.expenses.length === 0) {
+                emptyMsg.classList.remove('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+                
+                state.expenses.forEach(exp => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 dark:hover:bg-slate-700/50 transition border-b border-slate-50 dark:border-slate-700/50 last:border-0 text-slate-800 dark:text-slate-200';
+                    
+                    const color = categoryColors[exp.category] || '#64748b';
+                    
+                    tr.innerHTML = `
+                        <td class="py-3 px-5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">${exp.date}</td>
+                        <td class="py-3 px-5 font-medium">${exp.concept}</td>
+                        <td class="py-3 px-5">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border" style="background-color: ${color}15; color: ${color}; border-color: ${color}30;">
+                                ${exp.category}
+                            </span>
+                        </td>
+                        <td class="py-3 px-5 text-right font-bold">${formatCurrency(exp.amount)}</td>
+                        <td class="py-3 px-5 text-center whitespace-nowrap">
+                            <button onclick="editExpense('${exp.id}')" class="text-slate-400 hover:text-blue-500 mx-1 transition"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteExpense('${exp.id}')" class="text-slate-400 hover:text-red-500 mx-1 transition"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        // --- CHART.JS GRÁFICOS ---
+        function renderCharts() {
+            const textColor = state.darkMode ? '#cbd5e1' : '#475569';
+            const gridColor = state.darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+
+            // Preparar datos por categoría
+            const catMap = {};
+            state.expenses.forEach(e => {
+                catMap[e.category] = (catMap[e.category] || 0) + parseFloat(e.amount);
+            });
+            const catLabels = Object.keys(catMap);
+            const catData = Object.values(catMap);
+            const catBg = catLabels.map(l => categoryColors[l] || '#64748b');
+
+            // Preparar datos para evolución (últimos 7 gastos)
+            const recentExp = [...state.expenses].reverse().slice(-7);
+            const barLabels = recentExp.map(e => e.concept.length > 10 ? e.concept.substring(0,10)+'...' : e.concept);
+            const barData = recentExp.map(e => parseFloat(e.amount));
+
+            // Gráfico de Dona (Categorías)
+            const ctxPie = document.getElementById('categoryChart').getContext('2d');
+            if (chartPie) chartPie.destroy();
+            chartPie = new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: catLabels.length ? catLabels : ['Sin datos'],
+                    datasets: [{
+                        data: catData.length ? catData : [1],
+                        backgroundColor: catData.length ? catBg : ['#e2e8f0'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right', labels: { color: textColor, font: {family:'Inter', size:11} } } },
+                    cutout: '65%'
+                }
+            });
+
+            // Gráfico de Barras (Evolución)
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            if (chartBar) chartBar.destroy();
+            chartBar = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: barLabels.length ? barLabels : ['-'],
+                    datasets: [{
+                        label: 'Monto',
+                        data: barData.length ? barData : [0],
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: textColor, font: {size:10} }, grid: { display: false } },
+                        y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // --- MODAL DE PRESUPUESTO ---
+        window.openBudgetModal = function() {
+            document.getElementById('modalBudgetAmount').value = state.budget;
+            document.getElementById('budgetModal').classList.remove('hidden');
+        };
+
+        window.closeBudgetModal = function() {
+            document.getElementById('budgetModal').classList.add('hidden');
+        };
+
+        window.saveBudgetSettings = function(e) {
+            e.preventDefault();
+            const val = parseFloat(document.getElementById('modalBudgetAmount').value);
+            if (!isNaN(val) && val > 0) {
+                state.budget = val;
+                saveData();
+                updateUI();
+                closeBudgetModal();
+            }
+        };
+
+        // --- MODO OSCURO ---
+        window.toggleDarkMode = function() {
+            state.darkMode = !state.darkMode;
+            saveData();
+            applyTheme();
+            renderCharts(); // Re-render charts for color updates
+        };
+
+        function applyTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (state.darkMode) {
+                html.classList.add('dark');
+                icon.className = 'fa-solid fa-sun text-yellow-400 text-lg';
+            } else {
+                html.classList.remove('dark');
+                icon.className = 'fa-solid fa-moon text-lg';
+            }
+        }
+
+        // --- EXPORTACIONES ---
+        window.exportToWhatsApp = function() {
+            const total = state.expenses.reduce((s, e) => s + parseFloat(e.amount), 0);
+            const rem = state.budget - total;
+            
+            let txt = `📊 *REPORTE DE GASTOS WALLETPRO*\n\n`;
+            txt += `💰 *Presupuesto:* ${formatCurrency(state.budget)}\n`;
+            txt += `📉 *Gastado:* ${formatCurrency(total)}\n`;
+            txt += `💵 *Restante:* ${formatCurrency(rem)}\n\n`;
+            txt += `*Últimos Gastos:*\n`;
+            
+            state.expenses.slice(0, 5).forEach(e => {
+                txt += `- ${e.concept}: ${formatCurrency(e.amount)}\n`;
+            });
+            
+            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`;
+            window.open(url, '_blank');
+        };
+
+        window.exportToExcel = function() {
+            if (state.expenses.length === 0) {
+                alert("No hay datos para exportar.");
+                return;
+            }
+            try {
+                const data = state.expenses.map(e => ({
+                    'Fecha': e.date,
+                    'Descripción': e.concept,
+                    'Categoría': e.category,
+                    'Monto': e.amount
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Gastos");
+                XLSX.writeFile(wb, `Reporte_Gastos_${new Date().getTime()}.xlsx`);
+            } catch(e) {
+                console.error(e);
+                alert("Error al exportar Excel. Asegúrate de tener conexión a internet para cargar SheetJS.");
+            }
+        };
+
+        window.exportToImage = function() {
+            const node = document.getElementById('dashboardContent');
+            const origBg = node.style.background;
+            // Fijar fondo para que html2canvas no lo haga transparente
+            node.style.background = state.darkMode ? '#0f172a' : '#f8fafc';
+            
+            html2canvas(node, { scale: 2, useCORS: true }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Dashboard_${new Date().getTime()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                node.style.background = origBg;
+            }).catch(err => {
+                console.error(err);
+                alert("Error al generar la imagen.");
+                node.style.background = origBg;
+            });
+        };
+
+    </script>
+</body>
+</html>
