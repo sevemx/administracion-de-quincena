@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Gastos del Hogar</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Librerías JS: Chart.js, SheetJS, html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-animate { animation: slideIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-brand-900 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-brand-500/30 p-2 rounded-lg">
+                        <i class="fa-solid fa-house-chimney text-xl text-brand-100"></i>
+                    </div>
+                    <span class="font-bold text-xl tracking-tight hidden sm:inline">Gastos del Hogar</span>
+                    <span class="font-bold text-xl tracking-tight sm:hidden">Hogar</span>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <button onclick="openBudgetModal()" class="bg-brand-600 hover:bg-brand-500 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-wallet"></i>
+                        <span class="hidden sm:inline">Presupuesto</span>
+                    </button>
+                    <!-- Botón Limpiar Datos -->
+                    <button onclick="requestResetData()" class="bg-rose-600 hover:bg-rose-500 px-3 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2" title="Reiniciar Aplicación">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span class="hidden sm:inline">Reiniciar</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Modal de Confirmación (Reemplaza a window.confirm) -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 px-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300" id="confirmModalContent">
+            <div class="text-center mb-5">
+                <div class="bg-rose-100 text-rose-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800" id="confirmTitle">¿Estás seguro?</h3>
+                <p class="text-sm text-slate-500 mt-2" id="confirmMessage">Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeConfirmModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition-colors">Cancelar</button>
+                <button id="confirmActionBtn" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-medium py-2.5 rounded-xl shadow-md transition-colors">Sí, continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor Toasts -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
+        
+        <!-- Contenedor Exportable (KPIs y Gráfica) -->
+        <div id="exportableDashboard" class="space-y-6 bg-slate-50 p-2 -m-2 rounded-xl">
+            
+            <!-- KPIs -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <!-- Presupuesto -->
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Presupuesto Inicial</p>
+                        <i class="fa-solid fa-money-bill-wave text-brand-500 bg-brand-50 p-2 rounded-lg"></i>
+                    </div>
+                    <p id="kpiBudget" class="text-2xl sm:text-3xl font-bold text-slate-900 truncate">$0.00</p>
+                </div>
+
+                <!-- Gastado -->
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Gastado</p>
+                        <i class="fa-solid fa-cart-shopping text-rose-500 bg-rose-50 p-2 rounded-lg"></i>
+                    </div>
+                    <p id="kpiSpent" class="text-2xl sm:text-3xl font-bold text-rose-600 truncate">$0.00</p>
+                </div>
+
+                <!-- Saldo -->
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Saldo Restante</p>
+                        <i class="fa-solid fa-piggy-bank text-emerald-500 bg-emerald-50 p-2 rounded-lg"></i>
+                    </div>
+                    <p id="kpiBalance" class="text-2xl sm:text-3xl font-bold text-emerald-600 truncate">$0.00</p>
+                </div>
+
+                <!-- Salud -->
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Estado Financiero</p>
+                        <i id="healthIcon" class="fa-solid fa-heart-pulse text-slate-400 bg-slate-100 p-2 rounded-lg"></i>
+                    </div>
+                    <div>
+                        <p id="kpiHealthStatus" class="text-xl font-bold text-slate-700 mb-2">Sin Datos</p>
+                        <div class="w-full bg-slate-100 rounded-full h-2">
+                            <div id="healthBar" class="bg-slate-300 h-2 rounded-full transition-all duration-700" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráfico Dona -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-brand-500"></i> Distribución por Categoría
+                </h3>
+                <div class="relative h-64 md:h-72 w-full flex justify-center">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controles Inferiores (Formulario, Exportación, Historial) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Columna Izquierda: Ingreso y Exportaciones -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Formulario -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Registrar Nuevo Gasto</h3>
+                    <form id="expenseForm" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Descripción</label>
+                            <input type="text" id="inpConcept" required placeholder="Ej. Despensa Walmart" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-slate-50 focus:bg-white">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Monto ($)</label>
+                            <input type="number" id="inpAmount" step="0.01" min="0.01" required placeholder="0.00" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-slate-50 focus:bg-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoría</label>
+                            <select id="inpCategory" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-slate-50 focus:bg-white cursor-pointer">
+                                <option value="" disabled selected>Selecciona una opción...</option>
+                                <option value="Supermercado">🛒 Supermercado</option>
+                                <option value="Renta/Hipoteca">🏠 Renta / Hipoteca</option>
+                                <option value="Servicios">💡 Servicios (Luz/Agua/Gas)</option>
+                                <option value="Transporte">🚌 Transporte / Gasolina</option>
+                                <option value="Comida">🍔 Comida / Restaurantes</option>
+                                <option value="Salud">⚕️ Salud / Farmacia</option>
+                                <option value="Entretenimiento">🍿 Entretenimiento</option>
+                                <option value="Otros">📦 Otros Gastos</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3 rounded-lg transition-colors flex justify-center items-center gap-2 mt-4 shadow-sm">
+                            <i class="fa-solid fa-plus"></i> Guardar Gasto
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Exportaciones -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Exportar Información</h3>
+                    <div class="flex flex-col gap-3">
+                        <button onclick="exportWhatsApp()" class="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
+                            <i class="fa-brands fa-whatsapp text-lg"></i> Compartir por WhatsApp
+                        </button>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button onclick="exportExcel()" class="bg-[#107c41] hover:bg-[#0e6b38] text-white py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-file-csv"></i> Descargar Excel
+                            </button>
+                            <button onclick="exportImage()" class="bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-image"></i> Guardar Imagen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna Derecha: Tabla Historial -->
+            <div class="lg:col-span-2 flex flex-col">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-grow h-full max-h-[800px]">
+                    <div class="p-5 border-b border-slate-100 bg-slate-50/80 flex justify-between items-center">
+                        <h3 class="text-base font-bold text-slate-800">Historial de Gastos</h3>
+                        <span class="text-xs font-bold text-brand-600 bg-brand-100 px-3 py-1 rounded-full" id="countExpenses">0</span>
+                    </div>
+                    
+                    <div class="overflow-x-auto flex-grow overflow-y-auto">
+                        <table class="w-full text-left border-collapse min-w-[500px]">
+                            <thead class="bg-slate-50 text-slate-400 text-xs uppercase font-bold sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th class="py-3 px-5">Descripción</th>
+                                    <th class="py-3 px-5">Categoría</th>
+                                    <th class="py-3 px-5 text-right">Monto</th>
+                                    <th class="py-3 px-5 text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="divide-y divide-slate-100 text-sm">
+                                <!-- Filas JS -->
+                            </tbody>
+                        </table>
+                        
+                        <!-- Estado Vacío -->
+                        <div id="emptyState" class="hidden flex-col items-center justify-center py-20 text-slate-400">
+                            <i class="fa-solid fa-receipt text-5xl mb-4 text-slate-200"></i>
+                            <p class="font-medium text-slate-500">Aún no has registrado gastos</p>
+                            <p class="text-xs mt-1">Los movimientos aparecerán aquí.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Presupuesto -->
+    <div id="budgetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 px-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300" id="budgetModalContent">
+            <div class="text-center mb-5">
+                <div class="bg-brand-100 text-brand-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <i class="fa-solid fa-coins text-xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800">Tu Presupuesto</h3>
+                <p class="text-sm text-slate-500 mt-1">¿De cuánto dinero dispones para este periodo?</p>
+            </div>
+            
+            <form id="budgetForm" class="space-y-4">
+                <div class="relative">
+                    <span class="absolute left-4 top-3.5 text-slate-500 font-bold text-lg">$</span>
+                    <input type="number" id="inpBudgetAmount" step="0.01" min="1" required placeholder="0.00" class="w-full border border-slate-300 rounded-xl pl-8 pr-4 py-3 text-xl font-bold text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-slate-50 focus:bg-white text-center">
+                </div>
+                <button type="submit" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors">
+                    Guardar Presupuesto
+                </button>
+                <button type="button" onclick="closeBudgetModal()" class="w-full bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 font-medium py-3 rounded-xl transition-colors" id="btnCancelBudget">
+                    Cancelar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURACIÓN Y ESTADO ---
+        const STORAGE_KEY = 'home_budget_app_v2';
+        let state = {
+            budget: 0,
+            expenses: [] // { id, concept, amount, category, date }
+        };
+
+        // Paleta específica para gastos de hogar
+        const categoryColors = {
+            "Supermercado": "#f59e0b", // Ambar
+            "Renta/Hipoteca": "#3b82f6", // Azul
+            "Servicios": "#06b6d4", // Cyan
+            "Transporte": "#8b5cf6", // Violeta
+            "Comida": "#ef4444", // Rojo
+            "Salud": "#10b981", // Esmeralda
+            "Entretenimiento": "#ec4899", // Rosa
+            "Otros": "#64748b" // Pizarra
+        };
+
+        let chartCategory = null;
+        let pendingAction = null; // Para la ventana modal de confirmación
+
+        // Formateadores
+        const formatMoney = (amount) => {
+            return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
+        };
+
+        // --- 2. INICIALIZACIÓN ---
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                loadState();
+                
+                // Form Listeners
+                document.getElementById('expenseForm').addEventListener('submit', handleExpenseSubmit);
+                document.getElementById('budgetForm').addEventListener('submit', handleBudgetSubmit);
+                
+                updateUI();
+
+                // Pedir presupuesto si no hay
+                if (state.budget === 0) {
+                    setTimeout(() => {
+                        document.getElementById('btnCancelBudget').classList.add('hidden');
+                        openBudgetModal();
+                    }, 300);
+                }
+            } catch (error) {
+                console.error("Error inicializando:", error);
+                showToast("Ocurrió un error al cargar la app", "error");
+            }
+        });
+
+        // --- 3. PERSISTENCIA ---
+        function loadState() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                state = JSON.parse(saved);
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (e) {
+                showToast("Error guardando datos en el navegador.", "error");
+            }
+        }
+
+        // --- STREAMING_CHUNK:Lógica de Modales (Sin alertas nativas)... ---
+        // --- 4. GESTIÓN DE MODALES (Presupuesto y Confirmación) ---
+        function openBudgetModal() {
+            const modal = document.getElementById('budgetModal');
+            const content = document.getElementById('budgetModalContent');
+            
+            document.getElementById('btnCancelBudget').classList.toggle('hidden', state.budget === 0);
+            document.getElementById('inpBudgetAmount').value = state.budget > 0 ? state.budget : '';
+            
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            content.classList.remove('scale-95');
+        }
+
+        function closeBudgetModal() {
+            if (state.budget === 0) return; // Obliga a meter dato
+            const modal = document.getElementById('budgetModal');
+            const content = document.getElementById('budgetModalContent');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            content.classList.add('scale-95');
+        }
+
+        function handleBudgetSubmit(e) {
+            e.preventDefault();
+            const val = parseFloat(document.getElementById('inpBudgetAmount').value);
+            if (!isNaN(val) && val >= 0) {
+                state.budget = val;
+                saveState();
+                updateUI();
+                showToast("Presupuesto guardado.");
+                closeBudgetModal();
+            } else {
+                showToast("Monto inválido.", "error");
+            }
+        }
+
+        // Sistema de Confirmación Personalizado (Reemplazo de window.confirm)
+        function openConfirmModal(title, message, onConfirmCallback) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            
+            pendingAction = onConfirmCallback;
+            
+            // Asignar el evento al botón SI
+            const btn = document.getElementById('confirmActionBtn');
+            btn.onclick = () => {
+                if (pendingAction) pendingAction();
+                closeConfirmModal();
+            };
+
+            const modal = document.getElementById('confirmModal');
+            const content = document.getElementById('confirmModalContent');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            content.classList.remove('scale-95');
+        }
+
+        function closeConfirmModal() {
+            pendingAction = null;
+            const modal = document.getElementById('confirmModal');
+            const content = document.getElementById('confirmModalContent');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            content.classList.add('scale-95');
+        }
+
+        // --- STREAMING_CHUNK:Lógica de Interfaz y Formularios... ---
+        // --- 5. ACTUALIZACIÓN DE INTERFAZ ---
+        function updateUI() {
+            const totalSpent = state.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+            const balance = state.budget - totalSpent;
+            const percentage = state.budget > 0 ? (totalSpent / state.budget) * 100 : 0;
+
+            document.getElementById('kpiBudget').textContent = formatMoney(state.budget);
+            document.getElementById('kpiSpent').textContent = formatMoney(totalSpent);
+            
+            const kpiBalance = document.getElementById('kpiBalance');
+            kpiBalance.textContent = formatMoney(balance);
+            kpiBalance.className = `text-2xl sm:text-3xl font-bold truncate ${balance < 0 ? 'text-rose-600' : 'text-emerald-600'}`;
+
+            updateHealthUI(percentage, balance);
+            renderTable();
+            renderChart();
+        }
+
+        function updateHealthUI(percentage, balance) {
+            const statusEl = document.getElementById('kpiHealthStatus');
+            const barEl = document.getElementById('healthBar');
+            const iconEl = document.getElementById('healthIcon');
+
+            iconEl.className = "fa-solid p-2 rounded-lg ";
+            let text = "Excelente";
+            let barColor = "bg-emerald-500";
+            let iconClass = "fa-face-smile-beam text-emerald-500 bg-emerald-50";
+
+            if (state.budget === 0) {
+                text = "Sin Presupuesto";
+                barColor = "bg-slate-300";
+                iconClass = "fa-circle-question text-slate-400 bg-slate-100";
+                barEl.style.width = '0%';
+            } else if (percentage <= 60) {
+                text = "Bajo Control";
+            } else if (percentage <= 85) {
+                text = "Precaución";
+                barColor = "bg-amber-400";
+                iconClass = "fa-triangle-exclamation text-amber-500 bg-amber-50";
+            } else if (percentage <= 100) {
+                text = "Al Límite";
+                barColor = "bg-orange-500";
+                iconClass = "fa-fire text-orange-500 bg-orange-50";
+            } else {
+                text = "Excedido";
+                barColor = "bg-rose-600";
+                iconClass = "fa-skull-crossbones text-rose-600 bg-rose-50";
+            }
+
+            statusEl.textContent = text;
+            statusEl.className = `text-xl font-bold mb-2 ${balance < 0 ? 'text-rose-600' : 'text-slate-700'}`;
+            iconEl.className += iconClass;
+            
+            barEl.className = `h-2 rounded-full transition-all duration-700 ${barColor}`;
+            barEl.style.width = `${Math.min(percentage, 100)}%`;
+        }
+
+        // --- 6. MANEJO DE GASTOS Y REINICIO ---
+        function handleExpenseSubmit(e) {
+            e.preventDefault();
+            
+            const concept = document.getElementById('inpConcept').value.trim();
+            const amount = parseFloat(document.getElementById('inpAmount').value);
+            const categorySelect = document.getElementById('inpCategory');
+            const category = categorySelect.options[categorySelect.selectedIndex].value;
+
+            if (!concept || isNaN(amount) || amount <= 0 || !category) {
+                showToast("Llena los campos correctamente.", "error");
+                return;
+            }
+
+            const newExpense = {
+                id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+                concept,
+                amount,
+                category,
+                date: new Date().toISOString()
+            };
+
+            state.expenses.unshift(newExpense);
+            saveState();
+            updateUI();
+            
+            document.getElementById('inpConcept').value = '';
+            document.getElementById('inpAmount').value = '';
+            document.getElementById('inpCategory').selectedIndex = 0;
+            
+            showToast("Gasto registrado.");
+        }
+
+        function requestDelete(id) {
+            openConfirmModal(
+                "Eliminar Gasto", 
+                "¿Seguro que quieres borrar este registro?", 
+                () => {
+                    state.expenses = state.expenses.filter(exp => exp.id !== id);
+                    saveState();
+                    updateUI();
+                    showToast("Gasto eliminado.");
+                }
+            );
+        }
+
+        // FUNCIONALIDAD DE REINICIO COMPLETO
+        function requestResetData() {
+            openConfirmModal(
+                "Reiniciar Todo",
+                "Estás a punto de borrar todo el presupuesto y el historial de gastos. Esta acción es permanente.",
+                () => {
+                    // Borrar localStorage y resetear estado
+                    localStorage.removeItem(STORAGE_KEY);
+                    state = { budget: 0, expenses: [] };
+                    updateUI();
+                    showToast("Aplicación reiniciada por completo.");
+                    
+                    // Forzar a meter un nuevo presupuesto
+                    setTimeout(() => {
+                        document.getElementById('btnCancelBudget').classList.add('hidden');
+                        openBudgetModal();
+                    }, 500);
+                }
+            );
+        }
+
+        // --- STREAMING_CHUNK:Generando Tabla y Gráficos... ---
+        // --- 7. RENDERIZADO DE TABLA ---
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyState');
+            const countBadge = document.getElementById('countExpenses');
+            
+            tbody.innerHTML = '';
+            countBadge.textContent = state.expenses.length;
+
+            if (state.expenses.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+                tbody.parentElement.classList.add('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+                tbody.parentElement.classList.remove('hidden');
+
+                state.expenses.forEach(exp => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-50 transition-colors";
+                    
+                    const catColor = categoryColors[exp.category] || "#94a3b8";
+
+                    tr.innerHTML = `
+                        <td class="py-3 px-5 font-medium text-slate-800">${exp.concept}</td>
+                        <td class="py-3 px-5">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600">
+                                <span class="w-2 h-2 rounded-full" style="background-color: ${catColor}"></span>
+                                ${exp.category}
+                            </span>
+                        </td>
+                        <td class="py-3 px-5 text-right font-bold text-slate-700">${formatMoney(exp.amount)}</td>
+                        <td class="py-3 px-5 text-center">
+                            <button onclick="requestDelete('${exp.id}')" class="text-slate-300 hover:text-rose-500 transition-colors p-1" title="Eliminar">
+                                <i class="fa-solid fa-trash-can text-lg"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        // --- 8. GRÁFICA CHART.JS ---
+        function renderChart() {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            const grouped = {};
+            state.expenses.forEach(exp => {
+                grouped[exp.category] = (grouped[exp.category] || 0) + exp.amount;
+            });
+
+            const labels = Object.keys(grouped);
+            const data = Object.values(grouped);
+            const bgColors = labels.map(label => categoryColors[label] || "#cbd5e1");
+
+            if (chartCategory) {
+                chartCategory.destroy();
+            }
+
+            if (data.length === 0) {
+                chartCategory = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { labels: ['Sin Gastos'], datasets: [{ data: [1], backgroundColor: ['#f1f5f9'] }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: false }, legend: { display: false } } }
+                });
+                return;
+            }
+
+            chartCategory = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: bgColors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 10, font: { family: 'Inter', size: 12 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) { return ` ${formatMoney(context.raw)}`; }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- STREAMING_CHUNK:Integrando funciones de exportación... ---
+        // --- 9. EXPORTACIONES ---
+        
+        function exportWhatsApp() {
+            try {
+                if (state.expenses.length === 0) {
+                    showToast("No hay datos para compartir.", "error");
+                    return;
+                }
+                const totalSpent = state.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+                const balance = state.budget - totalSpent;
+                
+                let msg = `🏡 *REPORTE DE GASTOS DEL HOGAR*\n\n`;
+                msg += `💰 Presupuesto: ${formatMoney(state.budget)}\n`;
+                msg += `📉 Gastado: ${formatMoney(totalSpent)}\n`;
+                msg += `⚖️ Restante: ${formatMoney(balance)}\n\n`;
+                msg += `*Últimos Gastos:*\n`;
+                
+                state.expenses.slice(0, 15).forEach(exp => {
+                    msg += `• ${exp.concept} (${exp.category}): ${formatMoney(exp.amount)}\n`;
+                });
+
+                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+            } catch (err) { showToast("Error al exportar a WhatsApp", "error"); }
+        }
+
+        function exportExcel() {
+            try {
+                if (state.expenses.length === 0) {
+                    showToast("No hay gastos para exportar.", "error");
+                    return;
+                }
+                showToast("Generando Excel...");
+                const totalSpent = state.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+                
+                const wsData = [
+                    ["Reporte de Gastos del Hogar"],
+                    [],
+                    ["Presupuesto", state.budget],
+                    ["Total Gastado", totalSpent],
+                    ["Restante", state.budget - totalSpent],
+                    [],
+                    ["Descripción", "Categoría", "Monto"]
+                ];
+
+                state.expenses.forEach(exp => {
+                    wsData.push([exp.concept, exp.category, exp.amount]);
+                });
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Gastos");
+
+                // Auto ancho simple
+                ws['!cols'] = [{wch: 35}, {wch: 25}, {wch: 15}];
+
+                XLSX.writeFile(wb, `Gastos_Hogar_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } catch (err) { showToast("Error al crear Excel", "error"); }
+        }
+
+        function exportImage() {
+            try {
+                showToast("Preparando imagen...");
+                const element = document.getElementById('exportableDashboard');
+                
+                html2canvas(element, { scale: 2, backgroundColor: "#f8fafc", useCORS: true }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `Resumen_Gastos_${new Date().toISOString().split('T')[0]}.png`;
+                    link.href = canvas.toDataURL("image/png");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showToast("¡Imagen descargada!");
+                }).catch(err => {
+                    showToast("Error al generar la imagen", "error");
+                });
+            } catch (err) { showToast("Error al generar imagen", "error"); }
+        }
+
+        // --- 10. NOTIFICACIONES (TOAST) ---
+        function showToast(message, type = "success") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const isError = type === "error";
+            const bgColor = isError ? 'bg-rose-600' : 'bg-slate-800';
+            const icon = isError ? 'fa-circle-exclamation text-rose-200' : 'fa-circle-check text-emerald-400';
+            
+            toast.className = `toast-animate flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-white ${bgColor} pointer-events-auto min-w-[280px]`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-lg"></i><span class="text-sm font-medium">${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                toast.style.transition = 'all 0.3s ease-in';
+                setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+            }, 3000);
+        }
+
+    </script>
+</body>
+</html>
